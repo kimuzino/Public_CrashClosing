@@ -1,0 +1,11 @@
+# Example of the .yaml file
+Applications:
+  - destiny2.exe
+  - CS2.exe
+EnableTimer: false
+#Time: 30 (seconds)
+Timer: null
+EnableCloseButton: true
+# CloseButton: 0x2E
+CloseButton: null
+SystemTray: false

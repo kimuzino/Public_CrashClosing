@@ -5,7 +5,79 @@
 #include <tlhelp32.h>
 #include <iostream>
 #include "loop.h"
+#include "yaml-cpp/yaml.h"
 
+/* Refreshes variables upon updating the config file */
+void RefreshConfig()
+{
+    YAML::Node config = YAML::LoadFile("config.yaml"); // Config file (config.yaml).
+
+    enable_timer = config["EnableTimer"].as<bool>();
+    enable_closebutton = config["EnableCloseButton"].as<bool>();
+    system_tray = config["SystemTray"].as<bool>();
+
+    if (config["CloseButton"].IsNull())
+    {
+        std::cout << "CloseButton is null\n";
+        std::cout << "Fallback to default close button\n";
+        close_button = D_close_button;
+    }
+    else
+    {
+        try
+        {
+            close_button = config["CloseButton"].as<int>();
+        }
+        catch(const YAML::TypedBadConversion<int>& e)
+        {
+            std::cerr << "TypedBadConversion<int>: " << e.what() << '\n';
+            std::cerr << "Fallback to default close button\n";
+            close_button = D_close_button;
+        }
+        
+    }
+
+    if (config["Timer"].IsNull())
+    {
+        std::cout << "Timer is null\n";
+        std::cout << "Fallback to default timer\n";
+        timer = D_timer;
+    }
+    else
+    {
+        try
+        {
+            timer = config["Timer"].as<int>();
+        }
+        catch(const YAML::TypedBadConversion<int>& e)
+        {
+            std::cerr << "TypedBadConversion<int>: " << e.what() << '\n';
+            std::cerr << "Fallback to default time\n";
+            timer = D_timer;
+        }
+        
+    }
+
+    for (std::size_t i = 0; i < config["Applications"].size(); i++)
+    {
+        applications[i] = config["Applications"][i].as<std::string>();
+    }
+
+    //std::cout << "e_timer: " << enable_timer << "\n";
+    //std::cout << "timer: " << timer << "\n";
+    //std::cout << "e_closebutton: " << enable_closebutton << "\n";
+    //std::cout << "closebutton: " << close_button << "\n";
+    //std::cout << "systemtray: " << system_tray << "\n";
+    //std::cout << "Applications:\n";
+    //for (std::size_t i = 0; i < config["Applications"].size(); i++)
+    //{
+    //    std::cout << applications[i] << "\n";
+    //}
+    //std::cout << "Config file updated\n";
+
+    return;
+}
+/* Returns bool whether the program is running or not. */
 bool isProcessRunning(const char* processName, DWORD& processId)
 {
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -34,7 +106,7 @@ bool isProcessRunning(const char* processName, DWORD& processId)
     CloseHandle(snapshot);
     return false;
 }
-
+/* Returns DWORD/processId of the program that is running. Returns -1 in error. */
 DWORD returnProcessId(const char* processName, DWORD& processId)
 {
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -54,9 +126,9 @@ DWORD returnProcessId(const char* processName, DWORD& processId)
         } while (Process32Next(snapshot, &entry));
     }
 
-    return 'cerr';
+    return -1;
 }
-
+/* Gets "config.yaml" file latest update date and time then inserts them into file_date & file_time. */
 void GetFileLastWriteTime()
 {
     HANDLE hFile = CreateFileA(
@@ -77,14 +149,15 @@ void GetFileLastWriteTime()
         FileTimeToSystemTime(&ftWrite, &stUTC);
         SystemTimeToTzSpecificLocalTime(NULL, &stUTC, &stLocal);
 
-        file_date[0] = stLocal.wYear;
-        file_date[1] = stLocal.wMonth;
-        file_date[2] = stLocal.wDay;
-        file_time[0] = stLocal.wHour;
-        file_time[1] = stLocal.wMinute;
+        file_date = { stLocal.wYear, stLocal.wMonth, stLocal.wDay }; // File date (Year, Month, Day)
+        file_time = { stLocal.wHour, stLocal.wMinute, stLocal.wSecond}; // File time (Hour, Minute, Second)
         CloseHandle(hFile);
+        //std::cout << "File date: " << file_date[0] << "-" << file_date[1] << "-" << file_date[2] << "\n";
+        //std::cout << "File time: " << file_time[0] << ":" << file_time[1] << "-" << file_time[2] << "\n";
+        //std::cout << "File time updated\n";
         return;
     }
+
     else
     {
         std::cout << "Error getting file time\n";
@@ -92,65 +165,65 @@ void GetFileLastWriteTime()
         return;
     }
 }
-
+/* Returns bool whether the current date/time and "config.yaml" update date/time is equal(false) (minutes-1) or not(true) */
 bool ReturnDateTimeValidy()
 {
+    //std::cout << "Checking file date/time validy\n";
+    GetFileLastWriteTime(); // Update file_date and file_time
+
     SYSTEMTIME st;
     GetLocalTime(&st);
     std::array<int, 3> current_date = { st.wYear, st.wMonth, st.wDay }; // Current date (Year, Month, Day)
-    std::array<int, 2> current_time = { st.wHour, st.wMinute }; // Current time (Hour, Minute)
+    std::array<int, 3> current_time = { st.wHour, st.wMinute, st.wSecond }; // Current time (Hour, Minute, Second)
 
-    // Compare dates
     if (current_date[0] > file_date[0]) // Year
         return true;
 
-    else if (current_date[0] == file_date[0]) 
+    else if (current_date[0] == file_date[0]) // Year
     {
         if (current_date[1] > file_date[1]) // Month
             return true;
 
-        else if (current_date[1] == file_date[1]) 
+        else if (current_date[1] == file_date[1]) // Month
         {
             if (current_date[2] > file_date[2]) // Day
                 return true;
 
-            else if (current_date[2] == file_date[2]) 
+            else if (current_date[2] == file_date[2]) // Days
             {
-                // Compare times if the dates are the same
+                 /* Compare times if the dates are the same */
                 if (current_time[0] > file_time[0]) // Hour
                     return true;
 
-                else if (current_time[0] == file_time[0]) 
+                else if (current_time[0] == file_time[0]) // Hour
                 {
                     if (current_time[1] > file_time[1]) // Minute
                         return true;
 
-                    else if (current_time[1] == file_time[1] || current_time[1] == file_time[1] - 1) 
+                    else if (current_time[1] == file_time[1]) // Minute
                     {
-                        // If minutes are the same or off by one, return false
-                        return false;
+                        if (current_time[2] == file_time[2] || current_time[2] <= file_time[2] + 3) // Second
+                        {
+                            return false;
+                        }
+                        else
+                            return true;
                     }
                 }
             }
         }
     }
 
-    return false; // If none of the conditions are met, return false
+    return false;
 }
 
-void FileUpdate()
+bool CloseButtonMain()
 {
-    std::cout << "File update\n";
-}
-
-bool CloseButtonMain(const int close_button, std::array<std::string, 256> applications)
-{
-    std::cout << "close_button selected\n";
     DWORD events;
     INPUT_RECORD inputRecord;
     HANDLE keyBoard = GetStdHandle(STD_INPUT_HANDLE);
 
-    while (true) //if (GetAsyncKeyState(close_button) & 1)
+    while (true)
     {
         if (PeekConsoleInput(keyBoard, &inputRecord, 1, &events) != 0 && events > 0)
         {
@@ -167,8 +240,11 @@ bool CloseButtonMain(const int close_button, std::array<std::string, 256> applic
                                 std::cout << "array is empty\n";
                                 break;
                             }
-        
-                            return false;
+                            else 
+                            {
+                                std::cout << "array is not empty\n";
+                                std::cout << "Process name: " << applications[i].data() << "\n";
+                            }
 
                             const char* processName = applications[i].data();
                             DWORD processId = 0;
@@ -176,7 +252,7 @@ bool CloseButtonMain(const int close_button, std::array<std::string, 256> applic
                             if (isProcessRunning(processName, processId))
                             {
                                 processId = returnProcessId(processName, processId);
-                                if (processId == 'cerr')
+                                if (processId == -1)
                                 {
                                     std::cout << "processId returned error.\n";
                                     break;
@@ -187,8 +263,9 @@ bool CloseButtonMain(const int close_button, std::array<std::string, 256> applic
                                 {
                                     if (TerminateProcess(processHandle, 0))
                                     {
+                                        std::cout << "Process terminated: " << processName << "\n";
                                         CloseHandle(processHandle);
-                                        return false;
+                                        continue;
                                     }
                                     else
                                     {
@@ -203,8 +280,12 @@ bool CloseButtonMain(const int close_button, std::array<std::string, 256> applic
                                     break;
                                 }
                             }
+
+                            else
+                            {
+                                std::cout << "Process not found: " << processName << "\n";
+                            }
                         }
-                        std::cout << "Error happened!\n";
         
                         return false;
                     }
@@ -215,13 +296,10 @@ bool CloseButtonMain(const int close_button, std::array<std::string, 256> applic
         else
         {
             Sleep(300);
-            if(!ReturnDateTimeValidy)
-            {
-                //FileUpdate();
-                std::cout << "File update\n";
-            }
+            if(!ReturnDateTimeValidy()) { RefreshConfig(); }
         }
     }
+
     return true;
 }
 
