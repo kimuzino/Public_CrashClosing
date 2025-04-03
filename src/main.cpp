@@ -2,6 +2,7 @@
 #include <iostream>
 #include "loop.h"
 #include "tray.h"
+#include "fileCheck.h"
 
 /* Check for windows */
 bool allow_execution =
@@ -15,7 +16,7 @@ bool allow_execution =
 int main()
 {
     if (!allow_execution) { return 0; }
-
+    IsFileAvaiable();
     RefreshConfig();
     GetFileLastWriteTime();
 
