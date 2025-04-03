@@ -165,7 +165,7 @@ void GetFileLastWriteTime()
         return;
     }
 }
-/* Returns bool whether the current date/time and "config.yaml" update date/time is equal(false) (minutes-1) or not(true) */
+/* Returns bool whether the current date/time and "config.yaml" update date/time is equal(false) (or within 3 seconds) or not(true) */
 bool ReturnDateTimeValidy()
 {
     //std::cout << "Checking file date/time validy\n";
@@ -219,78 +219,66 @@ bool ReturnDateTimeValidy()
 
 bool CloseButtonMain()
 {
-    DWORD events;
-    INPUT_RECORD inputRecord;
-    HANDLE keyBoard = GetStdHandle(STD_INPUT_HANDLE);
 
     while (true)
     {
-        if (PeekConsoleInput(keyBoard, &inputRecord, 1, &events) != 0 && events > 0)
+        if (GetAsyncKeyState(close_button))
         {
-            if (ReadConsoleInput(keyBoard, &inputRecord, 1, &events) != 0)
+            for (int i = 0; i < 256; i++)
             {
-                if (inputRecord.EventType == KEY_EVENT && inputRecord.Event.KeyEvent.bKeyDown)
+                if (applications[i].empty()) 
                 {
-                    if (inputRecord.Event.KeyEvent.wVirtualKeyCode == close_button)
+                    std::cout << "array is empty\n";
+                    break;
+                }
+                else 
+                {
+                    std::cout << "array is not empty\n";
+                    std::cout << "Process name: " << applications[i].data() << "\n";
+                }
+
+                const char* processName = applications[i].data();
+                DWORD processId = 0;
+
+                if (isProcessRunning(processName, processId))
+                {
+                    processId = returnProcessId(processName, processId);
+                    if (processId == -1)
                     {
-                        for (int i = 0; i < 256; i++)
+                        std::cout << "processId returned error.\n";
+                        break;
+                    }
+
+                    HANDLE processHandle = OpenProcess(PROCESS_TERMINATE, false, processId);
+                    if (processHandle)
+                    {
+                        if (TerminateProcess(processHandle, 0))
                         {
-                            if (applications[i].empty()) 
-                            {
-                                std::cout << "array is empty\n";
-                                break;
-                            }
-                            else 
-                            {
-                                std::cout << "array is not empty\n";
-                                std::cout << "Process name: " << applications[i].data() << "\n";
-                            }
-
-                            const char* processName = applications[i].data();
-                            DWORD processId = 0;
-
-                            if (isProcessRunning(processName, processId))
-                            {
-                                processId = returnProcessId(processName, processId);
-                                if (processId == -1)
-                                {
-                                    std::cout << "processId returned error.\n";
-                                    break;
-                                }
-
-                                HANDLE processHandle = OpenProcess(PROCESS_TERMINATE, false, processId);
-                                if (processHandle)
-                                {
-                                    if (TerminateProcess(processHandle, 0))
-                                    {
-                                        std::cout << "Process terminated: " << processName << "\n";
-                                        CloseHandle(processHandle);
-                                        continue;
-                                    }
-                                    else
-                                    {
-                                        std::cout << "TerminateProcess failed\n";
-                                        CloseHandle(processHandle);
-                                        break;
-                                    }
-                                }
-                                else
-                                {
-                                    std::cout << "OpenProcess failed\n";
-                                    break;
-                                }
-                            }
-
-                            else
-                            {
-                                std::cout << "Process not found: " << processName << "\n";
-                            }
+                            std::cout << "Process terminated: " << processName << "\n";
+                            CloseHandle(processHandle);
+                            continue;
                         }
-        
-                        return false;
+                        else
+                        {
+                            std::cout << "TerminateProcess failed\n";
+                            CloseHandle(processHandle);
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        std::cout << "OpenProcess failed\n";
+                        break;
                     }
                 }
+
+                else
+                {
+                    std::cout << "Process not found: " << processName << "\n";
+                }
             }
+
+            return false;
         }
 
         else
