@@ -9,3 +9,4 @@ EnableCloseButton: true
 # CloseButton: 0x2E
 CloseButton: null
 SystemTray: false
+CloseOnly: false

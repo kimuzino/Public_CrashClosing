@@ -15,6 +15,7 @@ void RefreshConfig()
     enable_timer = config["EnableTimer"].as<bool>();
     enable_closebutton = config["EnableCloseButton"].as<bool>();
     system_tray = config["SystemTray"].as<bool>();
+    close_only = config["CloseOnly"].as<bool>();
 
     if (config["CloseButton"].IsNull())
     {
@@ -77,8 +78,8 @@ void RefreshConfig()
 
     return;
 }
-/* Returns bool whether the program is running or not. */
-bool isProcessRunning(const char* processName, DWORD& processId)
+/* Returns bool whether the program is running or not. (single/multi) */
+bool IsProcessRunning(const char* processName, DWORD& processId, const char* instance_amount)
 {
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 
@@ -90,24 +91,41 @@ bool isProcessRunning(const char* processName, DWORD& processId)
     PROCESSENTRY32 entry;
     entry.dwSize = sizeof(entry);
 
+    int processCount = 0; // Counter for processes with the same name
+
     if (Process32First(snapshot, &entry))
     {
         do
         {
             if (_stricmp(entry.szExeFile, processName) == 0)
             {
+                processCount++; // Increment the counter for each matching process
                 processId = entry.th32ProcessID;
-                CloseHandle(snapshot);
-                return true;
+
+                if (strcmp(instance_amount, "single") == 0)
+                {
+                    // If "single" mode, return true as soon as one process is found
+                    CloseHandle(snapshot);
+                    return true;
+                }
             }
         } while (Process32Next(snapshot, &entry));
     }
 
     CloseHandle(snapshot);
+
+    if (strcmp(instance_amount, "multi") == 0)
+    {
+        // If "multi" mode, return true only if multiple processes are found
+        return processCount > 1;
+    }
+
+    // Default to false if no processes are found or invalid instance_amount
     return false;
 }
+
 /* Returns DWORD/processId of the program that is running. Returns -1 in error. */
-DWORD returnProcessId(const char* processName, DWORD& processId)
+DWORD ReturnProcessId(const char* processName, DWORD& processId)
 {
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     PROCESSENTRY32 entry;
@@ -216,69 +234,81 @@ bool ReturnDateTimeValidy()
 
     return false;
 }
+/* Calls termination on processes inside applications array. */
+void CallTerminateProcess()
+{
+    for (int i = 0; i < 256; i++)
+    {
+        if (applications[i].empty()) 
+        {
+            std::cout << "array is empty\n";
+            break;
+        }
+        else 
+        {
+            std::cout << "array is not empty\n";
+            std::cout << "Process name: " << applications[i].data() << "\n";
+        }
+
+        const char* processName = applications[i].data();
+        DWORD processId = 0;
+
+        if (IsProcessRunning(processName, processId, "single"))
+        {
+            processId = ReturnProcessId(processName, processId);
+            if (processId == -1)
+            {
+                std::cout << "processId returned error.\n";
+                break;
+            }
+
+            HANDLE processHandle = OpenProcess(PROCESS_TERMINATE, false, processId);
+            if (processHandle)
+            {
+                if (TerminateProcess(processHandle, 0))
+                {
+                    std::cout << "Process terminated: " << processName << "\n";
+                    CloseHandle(processHandle);
+                    continue;
+                }
+                else
+                {
+                    std::cout << "TerminateProcess failed\n";
+                    CloseHandle(processHandle);
+                    break;
+                }
+            }
+            else
+            {
+                std::cout << "OpenProcess failed\n";
+                break;
+            }
+        }
+
+        else
+        {
+            std::cout << "Process not found: " << processName << "\n";
+        }
+    }
+
+    return;
+}
 
 bool CloseButtonMain()
 {
-
+    std::cout << "CloseButtonMain\n";
+    bool wasKeyPressed = false;
     while (true)
     {
-        if (GetAsyncKeyState(close_button))
+        if (close_only) { CloseOnlyMain(); }
+        if (!enable_closebutton) { return false; } // If close button is disabled, exit loop.
+
+        bool isKeyPressed = (GetAsyncKeyState(close_button) & 1) != 0;
+        if (wasKeyPressed && !isKeyPressed)
         {
-            for (int i = 0; i < 256; i++)
-            {
-                if (applications[i].empty()) 
-                {
-                    std::cout << "array is empty\n";
-                    break;
-                }
-                else 
-                {
-                    std::cout << "array is not empty\n";
-                    std::cout << "Process name: " << applications[i].data() << "\n";
-                }
-
-                const char* processName = applications[i].data();
-                DWORD processId = 0;
-
-                if (isProcessRunning(processName, processId))
-                {
-                    processId = returnProcessId(processName, processId);
-                    if (processId == -1)
-                    {
-                        std::cout << "processId returned error.\n";
-                        break;
-                    }
-
-                    HANDLE processHandle = OpenProcess(PROCESS_TERMINATE, false, processId);
-                    if (processHandle)
-                    {
-                        if (TerminateProcess(processHandle, 0))
-                        {
-                            std::cout << "Process terminated: " << processName << "\n";
-                            CloseHandle(processHandle);
-                            continue;
-                        }
-                        else
-                        {
-                            std::cout << "TerminateProcess failed\n";
-                            CloseHandle(processHandle);
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        std::cout << "OpenProcess failed\n";
-                        break;
-                    }
-                }
-
-                else
-                {
-                    std::cout << "Process not found: " << processName << "\n";
-                }
-            }
-
-            return false;
+            CallTerminateProcess();
+            wasKeyPressed = false; // Reset the key pressed state
+            continue;
         }
 
         else
@@ -286,6 +316,7 @@ bool CloseButtonMain()
             Sleep(300);
             if(!ReturnDateTimeValidy()) { RefreshConfig(); }
         }
+        wasKeyPressed = isKeyPressed;
     }
 
     return true;
@@ -293,6 +324,30 @@ bool CloseButtonMain()
 
 bool TimerMain()
 {
-    std::cout << "timer selected\n";
+    std::cout << "TimerMain\n";
+    DWORD processId = 0;
+    while (true)
+    {
+        if (close_only) { CloseOnlyMain(); }
+        if (!enable_timer) { return false; } // If timer is disabled, exit loop.
+
+        if (IsProcessRunning("crashpad", processId, "single"))
+        {
+
+        }
+        else
+        {
+            Sleep(300);
+            if (!ReturnDateTimeValidy()) { RefreshConfig(); }
+        }
+    }
+
     return true;
+}
+
+void CloseOnlyMain()
+{
+    std::cout << "CloseOnlyMain\n";
+    CallTerminateProcess();
+    exit(0);
 }
