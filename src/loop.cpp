@@ -4,7 +4,7 @@
 #include <processthreadsapi.h>
 #include <tlhelp32.h>
 #include <iostream>
-#include "loop.h"
+#include "func.h"
 #include "yaml-cpp/yaml.h"
 
 /* Refreshes variables upon updating the config file */
@@ -123,7 +123,6 @@ bool IsProcessRunning(const char* processName, DWORD& processId, const char* ins
     // Default to false if no processes are found or invalid instance_amount
     return false;
 }
-
 /* Returns DWORD/processId of the program that is running. Returns -1 in error. */
 DWORD ReturnProcessId(const char* processName, DWORD& processId)
 {
@@ -293,13 +292,14 @@ void CallTerminateProcess()
 
     return;
 }
-
+/* Main function for close button loop. */
 bool CloseButtonMain()
 {
     std::cout << "CloseButtonMain\n";
     bool wasKeyPressed = false;
     while (true)
     {
+        if (exit_loop) { break; } // Exit loop if exit_loop is set to true.
         if (close_only) { CloseOnlyMain(); }
         if (!enable_closebutton) { return false; } // If close button is disabled, exit loop.
 
@@ -321,13 +321,14 @@ bool CloseButtonMain()
 
     return true;
 }
-
+/* Main function for timer loop. */
 bool TimerMain()
 {
     std::cout << "TimerMain\n";
     DWORD processId = 0;
     while (true)
     {
+        if (exit_loop) { break; } // Exit loop if exit_loop is set to true.
         if (close_only) { CloseOnlyMain(); }
         if (!enable_timer) { return false; } // If timer is disabled, exit loop.
 
@@ -344,7 +345,7 @@ bool TimerMain()
 
     return true;
 }
-
+/* Main function for openonly execution. */
 void CloseOnlyMain()
 {
     std::cout << "CloseOnlyMain\n";

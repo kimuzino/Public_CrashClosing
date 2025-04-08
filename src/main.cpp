@@ -3,8 +3,8 @@
 #include <windows.h>
 #include <filesystem>
 #include <fstream>
-#include "loop.h"
-#include "tray.h"
+#include <thread>
+#include "func.h"
 
 /* Check for windows */
 bool allow_execution =
@@ -40,20 +40,22 @@ void IsFileAvaiable()
             std::cerr << "Failed to create config.yaml\n";
         }
     }
+
+    return;
 }
 
 /* main */
 int main()
 {
-    //DWORD processId = 0;
-    //if (IsProcessRunning("CrashClosing.exe", processId, "multi"))
-    //{
-    //    std::cerr << "Another instance is already running with PID: " << processId << "\n";
-    //    return 1;
-    //}
-
-    close_only = false; // Set to false by default.
     if (!allow_execution) { return 0; }
+    close_only = false;
+
+    DWORD processId = 0;
+    if (IsProcessRunning("CrashClosing.exe", processId, "multi"))
+    {
+        std::cerr << "Another instance is already running with PID: " << processId << "\n";
+        return 1;
+    }
 
     #define IDI_ICON 101
     #define IDI_SMALL 102
@@ -67,13 +69,23 @@ int main()
 
     if (close_only) { CloseOnlyMain(); } // If open_only is true, exit the program.
 
-    if (system_tray) { HideIntoSystemTray(); }
+    if (system_tray)
+    { 
+        tray_thread = std::thread(HideIntoSystemTray);
+        tray_thread.detach();
+    }
+    
     if (!enable_closebutton && !enable_timer) { close_button = true; }
 
     while (!exit_loop)
     {
         if (enable_closebutton) { exit_loop = CloseButtonMain(); }
         if (enable_timer) { exit_loop = TimerMain(); }
+    }
+
+    if (tray_thread.joinable())
+    {
+        tray_thread.join();
     }
 
     return 0;

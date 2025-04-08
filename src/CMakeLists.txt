@@ -9,7 +9,7 @@ FetchContent_MakeAvailable(yaml-cpp)
 
 add_executable(CrashClosing
 	main.cpp
-  loop.cpp
+	loop.cpp
   tray.cpp
 )
 

@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <iostream>
+#include "func.h"
 
 // Global variables
 NOTIFYICONDATA nid;
@@ -16,10 +17,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
         case 1: // Refresh
             MessageBoxA(NULL, "Refresh clicked!", "System Tray", MB_OK);
+            RefreshConfig();
             break;
         case 2: // Exit
-            Shell_NotifyIcon(NIM_DELETE, &nid); // Remove the tray icon
-            PostQuitMessage(0); // Exit the program
+            exit_loop = true; // Set exit flag
+            stop_tray_thread = true; // Stop the tray thread
             break;
         }
         break;
@@ -73,9 +75,16 @@ void HideIntoSystemTray()
 
     // Message loop
     MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0))
-    {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+    while (!stop_tray_thread)
+    {    
+        while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+        Sleep(100); // Prevent high CPU usage
     }
+
+    // Cleanup
+    Shell_NotifyIcon(NIM_DELETE, &nid); // Remove the tray icon
 }
