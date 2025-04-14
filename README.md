@@ -5,6 +5,7 @@ Example what should be inside the config.yaml file that is located where the Cra
 Applications:
   - destiny2.exe
   - CS2.exe
+
 EnableTimer: false
 Timer: 30
 EnableCloseButton: true
