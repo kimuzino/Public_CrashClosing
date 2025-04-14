@@ -16,8 +16,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         switch (LOWORD(wParam))
         {
         case 1: // Refresh
-            MessageBoxA(NULL, "Refresh clicked!", "System Tray", MB_OK);
-            RefreshConfig();
+            MessageBoxA(NULL, "Nothing happened.", "System Tray", MB_OK);
             break;
         case 2: // Exit
             exit_loop = true; // Set exit flag
@@ -70,7 +69,7 @@ void HideIntoSystemTray()
 
     // Create the context menu
     hMenu = CreatePopupMenu();
-    AppendMenuA(hMenu, MF_STRING, 1, "Refresh");
+    AppendMenuA(hMenu, MF_STRING, 1, "Placeholder");
     AppendMenuA(hMenu, MF_STRING, 2, "Exit");
 
     // Message loop

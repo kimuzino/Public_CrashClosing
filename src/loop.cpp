@@ -332,15 +332,22 @@ bool TimerMain()
         if (close_only) { CloseOnlyMain(); }
         if (!enable_timer) { return false; } // If timer is disabled, exit loop.
 
-        if (IsProcessRunning("crashpad", processId, "single"))
-        {
+        const char* CRASH_PROCESSES[] = {
+            "AMDBugReportTool.exe",
+            "DisplayDriverCrash.exe"
+        };
 
-        }
-        else
+        for (const char* processName : CRASH_PROCESSES)
         {
-            Sleep(300);
-            if (!ReturnDateTimeValidy()) { RefreshConfig(); }
+            if (IsProcessRunning(processName, processId, "single"))
+            {
+                CallTerminateProcess();
+                break;
+            }
         }
+
+        Sleep(300);
+        if (!ReturnDateTimeValidy()) { RefreshConfig(); }
     }
 
     return true;
